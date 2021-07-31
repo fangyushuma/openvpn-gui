@@ -389,46 +389,101 @@ FillLangListProc(UNUSED HANDLE module, UNUSED PTSTR type, UNUSED PTSTR stringId,
 
     return TRUE;
 }
-
-static BOOL 
-GetLaunchOnStartup()
+#include "misc.h"
+//static BOOL 
+//GetLaunchOnStartup()
+//{
+//	
+//    WCHAR regPath[MAX_PATH], exePath[MAX_PATH];	
+//    BOOL result = FALSE;
+//    HKEY regkey;
+//
+//    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_READ, &regkey) == ERROR_SUCCESS) {
+//
+//        if (GetRegistryValue(regkey, L"OpenVPN-GUI", regPath, MAX_PATH) &&
+//            GetModuleFileNameW(NULL, exePath, MAX_PATH)) {
+//            if (_wcsicmp(regPath, exePath) == 0)
+//                result = TRUE;
+//        }
+//
+//        RegCloseKey(regkey);
+//
+//    }
+//	
+//    return result;
+//
+//}
+static BOOL
+GetLaunchOnStartup(HWND hwndDlg)
 {
-	
-    WCHAR regPath[MAX_PATH], exePath[MAX_PATH];	
+    WCHAR Run[512];
+    WCHAR args[128], exePath[MAX_PATH];
     BOOL result = FALSE;
     HKEY regkey;
 
     if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_READ, &regkey) == ERROR_SUCCESS) {
 
-        if (GetRegistryValue(regkey, L"OpenVPN-GUI", regPath, MAX_PATH) &&
-            GetModuleFileNameW(NULL, exePath, MAX_PATH)) {
-            if (_wcsicmp(regPath, exePath) == 0)
+        if (GetRegistryValue(regkey, L"OpenVPN-GUI", Run, MAX_PATH) && GetModuleFileNameW(NULL, exePath, MAX_PATH)) {
+            //if (_wcsicmp(exePath, Run) == 0)
+            //if (wcslen(Run) != 0)
+            WCHAR* p = wcsstr(Run, exePath);
+            if (p != NULL) {
+                size_t n = wcslen(exePath);
+                wcscpy(args, L"");
+                if (wcslen(Run) > n) {
+                    wcscpy(args, p + n + 1);
+                }
+                SetDlgItemText(hwndDlg, ID_EDT_STARTUP_ARG, args);
                 result = TRUE;
+            }
         }
-
         RegCloseKey(regkey);
-
     }
-	
+
     return result;
 
 }
+//static void
+//SetLaunchOnStartup(BOOL value) 
+//{
+//
+//    WCHAR exePath[MAX_PATH];
+//    HKEY regkey;
+//
+//    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_WRITE, &regkey) == ERROR_SUCCESS) {
+//
+//        if (value) {
+//            if (GetModuleFileNameW(NULL, exePath, MAX_PATH)) 
+//                SetRegistryValue(regkey, L"OpenVPN-GUI", exePath);
+//        }
+//        else 
+//            RegDeleteValue(regkey, L"OpenVPN-GUI");            
+//
+//        RegCloseKey(regkey);
+//
+//    }
+//
+//}
 
 static void
-SetLaunchOnStartup(BOOL value) 
+SetLaunchOnStartup(HWND hwndDlg, BOOL value)
 {
-
+    WCHAR run[512];
     WCHAR exePath[MAX_PATH];
+    TCHAR args[128];
     HKEY regkey;
 
     if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_WRITE, &regkey) == ERROR_SUCCESS) {
 
         if (value) {
-            if (GetModuleFileNameW(NULL, exePath, MAX_PATH)) 
-                SetRegistryValue(regkey, L"OpenVPN-GUI", exePath);
+            GetDlgItemText(hwndDlg, ID_EDT_STARTUP_ARG, args, _countof(args));
+            if (GetModuleFileNameW(NULL, exePath, MAX_PATH)) {
+                wcs_concat2(run, _countof(run), exePath, args, L" ");
+                SetRegistryValue(regkey, L"OpenVPN-GUI", run);
+            }
         }
-        else 
-            RegDeleteValue(regkey, L"OpenVPN-GUI");            
+        else
+            RegDeleteValue(regkey, L"OpenVPN-GUI");
 
         RegCloseKey(regkey);
 
@@ -460,7 +515,7 @@ GeneralSettingsDlgProc(HWND hwndDlg, UINT msg, UNUSED WPARAM wParam, LPARAM lPar
         /* Clear language id data for the selected item */
         ComboBox_SetItemData(langData.languages, ComboBox_GetCurSel(langData.languages), 0);
 
-        if (GetLaunchOnStartup())
+        if (GetLaunchOnStartup(hwndDlg))
             Button_SetCheck(GetDlgItem(hwndDlg, ID_CHK_STARTUP), BST_CHECKED);
 
         if (o.log_append)
@@ -490,7 +545,7 @@ GeneralSettingsDlgProc(HWND hwndDlg, UINT msg, UNUSED WPARAM wParam, LPARAM lPar
             if (langId != 0)
                 SetGUILanguage(langId);
 
-            SetLaunchOnStartup(Button_GetCheck(GetDlgItem(hwndDlg, ID_CHK_STARTUP)) == BST_CHECKED);
+            SetLaunchOnStartup(hwndDlg, Button_GetCheck(GetDlgItem(hwndDlg, ID_CHK_STARTUP)) == BST_CHECKED);
 
             o.log_append =
                 (Button_GetCheck(GetDlgItem(hwndDlg, ID_CHK_LOG_APPEND)) == BST_CHECKED);
